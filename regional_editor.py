@@ -79,7 +79,7 @@ Review the headline. Output exactly one word: ALLOW or BLOCK."""
 # 🚀 MAIN EXECUTION
 # =====================================================================
 if __name__ == "__main__":
-    from reporter import fetch_major_headlines
+    from beat_reporter import fetch_major_headlines
 
     logger.info("Fetching live headlines for evaluation...")
     headlines = fetch_major_headlines()

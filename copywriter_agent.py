@@ -104,27 +104,58 @@ Drafted Post:"""
         logger.error(f"Error generating post for headline: {headline} - Error: {e}")
         return ""
 # =====================================================================
-# 🚀 MAIN EXECUTION
+# 🚀 MAIN EXECUTION - MULTI-AGENT PIPELINE TEST
 # =====================================================================
 if __name__ == "__main__":
-    from reporter import fetch_major_headlines
+    from beat_reporter import fetch_major_headlines
+    from regional_editor import evaluate_headline_significance
+    from datetime import datetime, timedelta
 
-    logger.info("Fetching recent headlines...")
+    logger.info("=== Starting Multi-Agent Pipeline Test ===")
+    
+    # Step 1: Fetch raw headlines
+    logger.info("Fetching raw headlines from all RSS feeds...")
     all_headlines = fetch_major_headlines()
     
-    # Filter to only include news from last 24 hours
-    recent_headlines = get_recent_headlines(all_headlines, hours=24)
+    # Filter to last 24 hours
+    cutoff_time = datetime.now().replace(tzinfo=None) - timedelta(hours=24)
+    recent_headlines = [
+        h for h in all_headlines 
+        if h.get("pub_date") and h["pub_date"].replace(tzinfo=None) > cutoff_time
+    ]
     
-    print(f"\n--- 📰 Recent Headlines (Last 24 Hours) ---")
-    for i, article in enumerate(recent_headlines[:5], 1):
-        print(f"{i}. [{article['source']}] {article['headline']}")
-    print("------------------------------------------\n")
+    logger.info(f"Total headlines: {len(all_headlines)} | Last 24h: {len(recent_headlines)}")
     
-    # Generate posts for recent headlines
-    if recent_headlines:
-        logger.info("Generating journalistic posts for recent headlines...")
-        for article in recent_headlines[:3]:
-            post = generate_journalistic_post(article["headline"])
-            print(f"Headline: {article['headline'][:60]}...")
-            print(f"Post: {post}")
-            print(f"Chars: {len(post)}\n")
+    # Step 2: Find first headline that passes regional editor filter
+    approved_headline = None
+    for article in recent_headlines:
+        headline = article["headline"]
+        is_approved = evaluate_headline_significance(headline)
+        
+        if is_approved:
+            approved_headline = article
+            logger.info(f"First approved headline found: {headline[:50]}...")
+            break
+    
+    # Step 3: Generate journalistic post from approved headline
+    if approved_headline:
+        raw_headline = approved_headline["headline"]
+        logger.info("Passing to Sports_Journalist for post generation...")
+        
+        final_post = generate_journalistic_post(raw_headline)
+        
+        # Output clean comparison
+        print("\n" + "="*60)
+        print("📰 RAW HEADLINE (from Beat_Reporter)")
+        print("="*60)
+        print(f"{raw_headline}")
+        print(f"Source: {approved_headline['source']}")
+        
+        print("\n" + "="*60)
+        print("✨ FINAL JOURNALISTIC POST (from Sports_Journalist)")
+        print("="*60)
+        print(final_post)
+        print(f"\nCharacter count: {len(final_post)}/280")
+        print("="*60 + "\n")
+    else:
+        logger.warning("No headlines passed the regional editor filter.")
