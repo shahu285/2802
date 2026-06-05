@@ -45,15 +45,25 @@ if __name__ == "__main__":
     ]
     logger.info(f"Total: {len(all_headlines)} | Last 24h: {len(recent_headlines)}")
     
-    # STEP 2: Regional_Editor - Filter headlines (get 2nd approved)
+    # STEP 2: Regional_Editor - Find first APPROVED FOOTBALL headline for variety
     logger.info("\n🔍 STEP 2: Regional_Editor evaluating headlines...")
+    
+    # First, try to find a football headline
     approved_headline = None
-    count = 0
     for article in recent_headlines:
         headline = article["headline"]
-        if evaluate_headline_significance(headline):
-            count += 1
-            if count == 2:  # Get the 2nd approved headline
+        source = article.get("source", "")
+        if "Football" in source or "football" in headline.lower():
+            if evaluate_headline_significance(headline):
+                approved_headline = article
+                logger.info(f"✅ Found FOOTBALL headline: {headline[:60]}...")
+                break
+    
+    # If no football, get any approved headline
+    if not approved_headline:
+        for article in recent_headlines:
+            headline = article["headline"]
+            if evaluate_headline_significance(headline):
                 approved_headline = article
                 break
     

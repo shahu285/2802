@@ -91,7 +91,7 @@ def generate_image(prompt: str) -> str:
         "telegram.org"
     ]
     
-    # Patterns to exclude (text-heavy images, thumbnails, quotes, graphics)
+    # Patterns to exclude (text-heavy images, thumbnails, quotes, press conference)
     EXCLUDED_PATTERNS = [
         "quote",
         "quotes",
@@ -115,31 +115,53 @@ def generate_image(prompt: str) -> str:
         "text-on",
         "textoverlay",
         "wordart",
-        "typo"
+        "typo",
+        # Press conference / media interaction
+        "press",
+        "pc ",
+        "_pc",
+        "conference",
+        "interview",
+        "media",
+        "meeting",
+        "address",
+        "statement",
+        # Motion/video frames
+        "motion",
+        "dm_",
+        "videoframe",
+        "frame",
+        # Text overlay patterns
+        "overlay",
+        "caption",
+        "scribble",
+        "graphic",
+        # Social media
+        "social",
+        "post",
+        "tweet",
+        "story",
+        "reel"
     ]
     
-    # Preferred domains (from Google Images / news sites)
+    # Preferred domains - Clean stock photos + Reuters/AFP (wire photos are usually clean)
     PREFERRED_DOMAINS = [
-        "espncricinfo.com",
-        "cricbuzz.com",
-        "icc-cricket.com",
-        "bcci.tv",
-        "sports.ndtv.com",
-        "thehindu.com",
-        "timesofindia.indiatimes.com",
-        "hindustantimes.com",
-        "indianexpress.com",
+        # Wire services - usually clean
         "reuters.com",
-        "apnews.com",
+        "apnews.com", 
         "afp.com",
+        # Stock agencies
         "gettyimages.com",
+        "gettyimages.in",
+        "gettyimages.co.uk",
         "imagoimages.com",
-        "corbis.com",
-        "shutterstock.com",
-        "istockphoto.com",
-        "google.com",
-        "bing.com",
-        "yahoo.com"
+        "imago-images.de",
+        "sportsphoto.com",
+        "profimedia.si",
+        # ESPN player photos (usually clean portraits)
+        "espncricinfo.com/players",
+        "espncricinfo.com/photo",
+        "a.espncricinfo.com",
     ]
     
     def is_acceptable_image(url: str) -> bool:
