@@ -1,8 +1,9 @@
 import logging
 import os
+import requests
+import base64
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from duckduckgo_search import DDGS
 
 # =====================================================================
 # 🪵 SYSTEM LOGGING CONFIGURATION
@@ -30,45 +31,16 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is missing from the .env file")
 
 logger.info("GEMINI_API_KEY loaded successfully")
+
 # =====================================================================
-# 🎨 IMAGE PROMPT GENERATOR
+# 🔐 TAVILY API KEY (for image search)
 # =====================================================================
-def generate_image_prompt(headline: str) -> str:
-    """
-    Generates a detailed image generation prompt based on a sports headline.
-    """
-    system_prompt = """You are a Sports Photojournalist visual prompt engineer. Your task is to create vivid, descriptive image generation prompts for AI image generators.
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
-GUIDELINES:
-- Focus on the key visual elements from the headline (players, actions, venues, emotions)
-- Include rich descriptive details: lighting, camera angle, colors, atmosphere
-- Specify sports context: cricket field, football stadium, badminton court, etc.
-- Capture the mood: celebration, tension, victory, defeat, anticipation
-- Include Indian sports context where relevant (Indian team jerseys, stadiums, crowds)
-- Keep the prompt under 200 words for optimal AI image generation
-- Output ONLY the prompt, no explanations or markdown
-
-Headline: '{headline}'
-Visual Prompt:"""
-
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
-            temperature=0.7,
-            google_api_key=GEMINI_API_KEY
-        )
-
-        response = llm.invoke(system_prompt.format(headline=headline))
-        prompt_text = response.content.strip()
-        
-        logger.info(f"Generated image prompt for: {headline[:50]}...")
-        return prompt_text
-
-    except Exception as e:
-        logger.error(f"Error generating image prompt: {e}")
-        return ""
+if TAVILY_API_KEY:
+    logger.info("TAVILY_API_KEY loaded successfully")
+else:
+    logger.warning("TAVILY_API_KEY not found in .env - image search will use fallback")
 # =====================================================================
 # 🔍 IMAGE SEARCH FUNCTIONS
 # =====================================================================
@@ -76,7 +48,7 @@ def get_image_query(headline: str) -> str:
     """
     Extracts a clean 3-to-4 word image search query from the headline.
     """
-    system_prompt = """You are a photo editor. Extract the main person or team from this sports headline and output a clean, ultra-precise 3-to-4 word image search query. Optimize it to find professional action shots or portraits. Output ONLY the search query keywords with no punctuation, quote marks, or extra words."""
+    system_prompt = "You are a photo editor. Extract the main person or team from this sports headline and output a clean, ultra-precise 3-to-4 word image search query. Optimize it to find professional action shots or portraits. Output ONLY the search query keywords with no punctuation, quote marks, or extra words."
 
     try:
         llm = ChatGoogleGenerativeAI(
@@ -96,32 +68,192 @@ def get_image_query(headline: str) -> str:
         return ""
 
 
-def fetch_image_url(headline: str) -> str:
+def generate_image(prompt: str) -> str:
     """
-    Searches for and returns a relevant image URL for the headline.
+    Uses Tavily API to search for relevant images from Google Images.
+    Filters out social media images (Instagram, Threads, Facebook).
     """
-    try:
-        # Get the optimized search query
-        query = get_image_query(headline)
-        if not query:
-            return ""
+    FALLBACK_URL = "https://unsplash.com/photos/people-watching-game-of-cricket-during-sunset-mUtQXjjLPbw"
+    
+    # Domains to exclude (social media, not from Google Images)
+    EXCLUDED_DOMAINS = [
+        "facebook.com",
+        "instagram.com", 
+        "threads.net",
+        "twitter.com",
+        "x.com",
+        "tiktok.com",
+        "linkedin.com",
+        "reddit.com",
+        "pinterest.com",
+        "snapchat.com",
+        "whatsapp.com",
+        "telegram.org"
+    ]
+    
+    # Patterns to exclude (text-heavy images, thumbnails, quotes, graphics)
+    EXCLUDED_PATTERNS = [
+        "quote",
+        "quotes",
+        "infographic",
+        "chart",
+        "stat",
+        "stats",
+        "animation",
+        "video",
+        "player-profile",
+        "headshot",
+        "avatar",
+        "icon",
+        "logo",
+        "banner",
+        "illustration",
+        "vector",
+        "artwork",
+        "cartoon",
+        "meme",
+        "text-on",
+        "textoverlay",
+        "wordart",
+        "typo"
+    ]
+    
+    # Preferred domains (from Google Images / news sites)
+    PREFERRED_DOMAINS = [
+        "espncricinfo.com",
+        "cricbuzz.com",
+        "icc-cricket.com",
+        "bcci.tv",
+        "sports.ndtv.com",
+        "thehindu.com",
+        "timesofindia.indiatimes.com",
+        "hindustantimes.com",
+        "indianexpress.com",
+        "reuters.com",
+        "apnews.com",
+        "afp.com",
+        "gettyimages.com",
+        "imagoimages.com",
+        "corbis.com",
+        "shutterstock.com",
+        "istockphoto.com",
+        "google.com",
+        "bing.com",
+        "yahoo.com"
+    ]
+    
+    def is_acceptable_image(url: str) -> bool:
+        """Check if image is from acceptable domain and not text/thumbnail."""
+        url_lower = url.lower()
         
-        # Search for images using DuckDuckGo
-        ddgs = DDGS()
-        results = ddgs.images(
-            keywords=query,
-            max_results=3
+        # Must end with valid image extension
+        if not any(url_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+            return False
+        
+        # Check if from excluded domain
+        for domain in EXCLUDED_DOMAINS:
+            if domain in url_lower:
+                return False
+        
+        # Check for excluded patterns (text, thumbnails, quotes, etc.)
+        for pattern in EXCLUDED_PATTERNS:
+            if pattern in url_lower:
+                return False
+        
+        return True
+    
+    def get_domain_priority(url: str) -> int:
+        """Lower number = higher priority."""
+        url_lower = url.lower()
+        for i, domain in enumerate(PREFERRED_DOMAINS):
+            if domain in url_lower:
+                return i
+        return len(PREFERRED_DOMAINS)  # Default lowest priority
+    
+    if not TAVILY_API_KEY:
+        logger.warning("No Tavily API key, using fallback")
+        return FALLBACK_URL
+    
+    try:
+        # Use Tavily client for search
+        from tavily import TavilyClient
+        
+        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+        
+        # Search for images related to the prompt
+        search_results = tavily_client.search(
+            query=prompt,
+            max_results=10,
+            include_images=True
         )
         
-        for result in results:
-            url = result.get("url", "")
-            if url and any(url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png"]):
-                logger.info(f"Found image URL: {url[:50]}...")
-                return url
+        # Collect all acceptable images
+        acceptable_images = []
         
-        logger.warning(f"No valid image found for query: {query}")
-        return ""
-
+        # Extract image URLs from results
+        if search_results.get("images"):
+            for img_url in search_results["images"]:
+                if is_acceptable_image(img_url):
+                    acceptable_images.append(img_url)
+        
+        # If no images in search, try to get from results
+        if search_results.get("results") and not acceptable_images:
+            for result in search_results["results"]:
+                if "img" in result or "image" in result:
+                    img_url = result.get("img") or result.get("image")
+                    if is_acceptable_image(img_url):
+                        acceptable_images.append(img_url)
+        
+        # Sort by domain priority (preferred domains first)
+        if acceptable_images:
+            acceptable_images.sort(key=get_domain_priority)
+            logger.info(f"🟢 [SUCCESS] Image found via Tavily: {acceptable_images[0][:50]}...")
+            return acceptable_images[0]
+        
+        logger.warning("No acceptable images found in Tavily search results")
+        
+    except ImportError:
+        logger.warning("tavily-python not installed, trying direct API call")
+        try:
+            # Direct API call fallback
+            url = "https://api.tavily.com/search"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "api_key": TAVILY_API_KEY,
+                "query": prompt,
+                "max_results": 10,
+                "include_images": True
+            }
+            
+            response = requests.post(url, json=payload, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                acceptable_images = []
+                if data.get("images"):
+                    for img_url in data["images"]:
+                        if is_acceptable_image(img_url):
+                            acceptable_images.append(img_url)
+                
+                if acceptable_images:
+                    acceptable_images.sort(key=get_domain_priority)
+                    logger.info(f"🟢 [SUCCESS] Image found via Tavily API: {acceptable_images[0][:50]}...")
+                    return acceptable_images[0]
+                            
+        except Exception as e:
+            logger.warning(f"Tavily direct API call failed: {e}")
+    
     except Exception as e:
-        logger.warning(f"Error fetching image URL (may be rate limited): {e}")
-        return ""
+        logger.warning(f"Error with Tavily search: {e}")
+    
+    # Fallback
+    logger.warning("Tavily search failed, using fallback image")
+    return FALLBACK_URL
+
+
+def fetch_image_from_prompt(headline: str, detailed_prompt: str) -> str:
+    """
+    Generates an image using the detailed prompt from other agents.
+    """
+    logger.info(f"Generating image for headline: {headline[:50]}...")
+    return generate_image(detailed_prompt)
