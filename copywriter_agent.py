@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from email.utils import parsedate_to_datetime
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # =====================================================================
 # 🪵 SYSTEM LOGGING CONFIGURATION
@@ -24,13 +24,13 @@ logger = logging.getLogger("Sports_Journalist")
 # =====================================================================
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GEMINI_API_KEY:
-    logger.error("GEMINI_API_KEY is missing from the .env file")
-    raise ValueError("GEMINI_API_KEY is missing from the .env file")
+if not GROQ_API_KEY:
+    logger.error("GROQ_API_KEY is missing from the .env file")
+    raise ValueError("GROQ_API_KEY is missing from the .env file")
 
-logger.info("GEMINI_API_KEY loaded successfully")
+logger.info("GROQ_API_KEY loaded successfully")
 
 # =====================================================================
 # 🕐 RECENT HEADLINES FILTER
@@ -88,10 +88,10 @@ Headline to transform: '{headline}'
 Drafted Post:"""
 
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+        llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
             temperature=0.65,
-            google_api_key=GEMINI_API_KEY
+            groq_api_key=os.getenv("GROQ_API_KEY")
         )
 
         response = llm.invoke(system_prompt.format(headline=headline))

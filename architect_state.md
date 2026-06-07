@@ -51,9 +51,85 @@ The absolute end goal of this project is to build an autonomous, production-grad
 
 ---
 
-## 4. Deep-Dive Full-Stack Layer Specification
+## 4. Data Workflow & Status Flow
 
-### 📦 LAYER 1: THE CORE AGENT ENGINE (STATUS: VERIFIED COMPLETE)
+### The Complete Pipeline Flow:
+```
+Beat_Reporter (fetches RSS) 
+    → Regional_Editor (filters for Indian sports)
+    → Copywriter_Agent (generates viral post)
+    → Photojournalist (finds image)
+    ↓
+SUPABASE (pending_posts table - stores all data)
+    ↓
+Frontend Dashboard (displays posts for review)
+    ↓
+User clicks "Approve" → publisher.py posts to Bluesky
+```
+
+### Database Status Flow:
+| Status     | Meaning              | Next Action |
+|--------    |---------             |-------------|
+| `pending`  | Awaiting your review | View in dashboard |
+| `approved` | You approved it      | Auto-publishes to Bluesky |
+| `rejected` | You rejected it      | Removed from queue |
+
+### Each Post Stores:
+| Column           | Purpose                       | Example |
+|--------          |---------                      |---------|
+| `id`             | Unique ID                     | `abc-123-def-456` |
+| `raw_headline`   | Original RSS headline         | "Dhoni retires from IPL" |
+| `styled_text`    | AI-generated viral post       | "🚨BREAKING: MS Dhoni..." |
+| `image_url`      | Photo from Photojournalist    | `https://images.unsplash.com/...` |
+| `severity_tier`  | News importance (Tier 1/2/3)  | `Tier 1` (breaking) |
+| `status`         | Approval flow control         | `pending` → `approved`/`rejected` |
+| `source_feed`    | Which RSS feed                | `Cricket Feed` |
+| `created_at`     | Timestamp                     | `2026-06-06 16:03:00` |
+
+---
+
+## 5. Deep-Dive Full-Stack Layer Specification
+
+### 📦 LAYER 1: THE CORE AGENT ENGINE (STATUS: ✅ COMPLETE)
+
+**Execution Flow (Step by Step):**
+
+```
+1. Beat_Reporter (beat_reporter.py)
+   └─> Fetches headlines from 4 RSS feeds (Cricket, Football, All News, Other Sports)
+   └─> Filters articles from last 24 hours
+   └─> Returns list of articles with: headline, source, URL, pub_date
+
+2. Regional_Editor (regional_editor.py)
+   └─> Receives each headline from Beat_Reporter
+   └─> Uses Groq LLM (llama-3.3-70b-versatile) to classify: ALLOW or BLOCK
+   └─> Allows: Cricket, Kabaddi, Football, Indian sports
+   └─> Blocks: US sports (NFL, NBA, MLB), minor gossip
+
+3. Copywriter_Agent (copywriter_agent.py)
+   └─> Receives approved headline
+   └─> Uses Groq LLM to analyze severity (Tier 1/2/3)
+   └─> Generates viral post (<280 chars) with appropriate formatting
+   └─> Returns styled text ready for posting
+
+4. Photojournalist (photojournalist.py)
+   └─> Uses Groq to extract 3-4 keyword search query from headline
+   └─> Searches Tavily API for relevant images
+   └─> Filters out: social media, quotes, thumbnails, text overlays
+   └─> Returns clean image URL
+
+5. database_manager (database_manager.py)
+   └─> Saves complete post to Supabase pending_posts table
+   └─> Status defaults to "pending" for human review
+   └─> Returns saved record with ID
+```
+
+**Current Pipeline Command:**
+```bash
+python test_pipeline.py
+```
+
+**Output:** Posts saved to Supabase with status="pending"
 All individual core agent modules are written, isolated, and completely functional. They interact through a unified execution sequence managed and verified inside `test_pipeline.py`. Every agent logs its operational metrics natively to `newsroom.log`.
 
 - **Agent 1: Beat Reporter (`beat_reporter.py`):** Ingests live data streams across multiple sports disciplines (Cricket, European Football, and General Multi-sport vectors tracking Hockey, Badminton, Chess, and Athletics) using custom HTTP headers to avoid anti-bot blocking.
@@ -62,19 +138,36 @@ All individual core agent modules are written, isolated, and completely function
 - **Agent 4: Visual Photojournalist (`photojournalist.py`):** Utilizes the Tavily Search API. It reads the headline, abstracts search entity queries via Gemini 2.5 Flash Lite, searches the open web for live breaking media assets, and returns direct `.jpg` / `.png` press photo URLs. Includes a resilient fallback image URL structure.
 - **The Integration Verification Gate (`test_pipeline.py`):** A custom operational integration file that strings all 4 agents together. Running `python test_pipeline.py` executes a full mock run showing a raw headline successfully flowing through regional validation, custom tone copywriting styling, and real-time Tavily image allocation in a single process.
 
-### 🗄️ LAYER 2: THE DATABASE & MEMORY LAYER (STATUS: PENDING / NEXT UP)
-This layer transitions the system from volatile local console execution to cloud-backed persistence, acting as the structural data bridge between our background AI agents and our frontend dashboard.
+### 🗄️ LAYER 2: THE DATABASE & MEMORY LAYER (STATUS: ✅ COMPLETE)
 
-- **Cloud Instance:** Free-tier Supabase project running an enterprise PostgreSQL database engine.
-- **Database Schema:** A main table named `pending_posts` configured with the following columns:
-  - `id`: UUID (Primary Key, Auto-generated)
-  - `raw_headline`: TEXT (Original source news headline)
-  - `styled_text`: TEXT (The custom, style-cloned copy drafted by Agent 3)
-  - `image_url`: TEXT (The live news picture URL fetched by Agent 4 via Tavily)
-  - `severity_tier`: TEXT (Tier 1, Tier 2, or Tier 3 classification string)
-  - `status`: TEXT (Defaults strictly to `'pending'`. Changes to `'approved'` or `'rejected'` via user dashboard)
-  - `created_at`: TIMESTAMPTZ (Auto-timestamping for feed ordering)
-- **Data Insertion Layer:** A python helper class (`database_manager.py`) utilizing `supabase-py` to let our agents perform async backend `INSERT` queries upon completing a successful pipeline run.
+- **Cloud Instance:** Free-tier Supabase project
+- **Project URL:** `https://lmwohypczyicnznoqejo.supabase.co`
+- **Database Table:** `pending_posts`
+
+**Schema:**
+```sql
+pending_posts (
+  id UUID PRIMARY KEY,
+  raw_headline TEXT,
+  styled_text TEXT,
+  image_url TEXT,
+  severity_tier TEXT DEFAULT 'Tier 2',
+  status TEXT DEFAULT 'pending',
+  source_feed TEXT,
+  created_at TIMESTAMPTZ
+)
+```
+
+**Available Functions in database_manager.py:**
+- `insert_pending_post()` - Save new post
+- `get_pending_posts()` - Fetch pending posts
+- `get_all_posts()` - Fetch all posts
+- `update_post_status()` - Approve/reject
+- `delete_post()` - Remove post
+
+---
+
+### 💻 LAYER 3: THE PRESENTATION & GATEWAY LAYER (STATUS: PENDING)
 
 ### 💻 LAYER 3: THE PRESENTATION & GATEWAY LAYER (STATUS: PENDING)
 The front-facing surface layer that exposes our data storage queue to human editors and handles outbound secure network broadcasting.
@@ -88,7 +181,36 @@ The front-facing surface layer that exposes our data storage queue to human edit
 
 ---
 
-## 5. System Execution Context (Rules for Upcoming AI Agents)
+## 6. Frontend Dashboard Features
+
+The web dashboard should visualize this workflow for easy understanding:
+
+### Dashboard View:
+- **Pipeline Status** - Show current step (Fetching → Filtering → Writing → Getting Image → Storing)
+- **Post Queue** - List all `pending` posts with:
+  - Raw headline
+  - Styled post preview
+  - Image thumbnail
+  - Severity badge (Tier 1/2/3)
+  - Source feed indicator
+  - Timestamp
+- **Action Buttons** - "Approve & Publish" / "Reject"
+- **History Tab** - View `approved` and `rejected` posts
+
+### Visual Flow Indicator:
+```
+[🔄 Fetching] → [🔍 Filtering] → [✍️ Writing] → [🖼️ Image] → [💾 Stored]
+                                                                   ↓
+                                                            [📱 Dashboard]
+                                                                   ↓
+                                                            [✅ Approve] → [🚀 Bluesky]
+```
+
+This helps users understand where each post is in the pipeline.
+
+---
+
+## 7. System Execution Context (Rules for Upcoming AI Agents)
 Any AI model or developer continuing this repository must:
 1. Strictly maintain the zero-cost architecture boundaries.
 2. Use **Gemini 2.5 Flash Lite** (`gemini-2.5-flash-lite`) as the standard LLM driver for low latency and high consistency.

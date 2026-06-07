@@ -24,6 +24,7 @@ from beat_reporter import fetch_major_headlines
 from regional_editor import evaluate_headline_significance
 from copywriter_agent import generate_journalistic_post
 from photojournalist import generate_image as generate_image_prompt, fetch_image_from_prompt
+from database_manager import insert_pending_post
 
 # =====================================================================
 # PIPELINE EXECUTION
@@ -84,6 +85,29 @@ if __name__ == "__main__":
     logger.info("\n🎨 STEP 4: Photojournalist getting image...")
     image_url = fetch_image_from_prompt(raw_headline, raw_headline)
     logger.info("✅ Image retrieved")
+    
+    # STEP 5: Save to Database (Supabase)
+    logger.info("\n💾 STEP 5: Saving to Supabase database...")
+    # Determine severity tier from the post content
+    if viral_post.startswith("🚨BREAKING") or viral_post.startswith("🚨UPDATE"):
+        severity_tier = "Tier 1"
+    elif any(emoji in viral_post for emoji in ["🏏", "⚽", "🏅", "🎯"]):
+        severity_tier = "Tier 2"
+    else:
+        severity_tier = "Tier 3"
+    
+    saved_post = insert_pending_post(
+        raw_headline=raw_headline,
+        styled_text=viral_post,
+        image_url=image_url,
+        severity_tier=severity_tier,
+        source_feed=source
+    )
+    
+    if saved_post:
+        logger.info(f"✅ Post saved to database with ID: {saved_post['id']}")
+    else:
+        logger.error("❌ Failed to save post to database")
     
     # =====================================================================
     # FINAL OUTPUT

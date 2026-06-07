@@ -1,9 +1,8 @@
 import logging
 import os
 import requests
-import base64
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # =====================================================================
 # 🪵 SYSTEM LOGGING CONFIGURATION
@@ -24,13 +23,13 @@ logger = logging.getLogger("Photojournalist")
 # =====================================================================
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GEMINI_API_KEY:
-    logger.error("GEMINI_API_KEY is missing from the .env file")
-    raise ValueError("GEMINI_API_KEY is missing from the .env file")
+if not GROQ_API_KEY:
+    logger.error("GROQ_API_KEY is missing from the .env file")
+    raise ValueError("GROQ_API_KEY is missing from the .env file")
 
-logger.info("GEMINI_API_KEY loaded successfully")
+logger.info("GROQ_API_KEY loaded successfully")
 
 # =====================================================================
 # 🔐 TAVILY API KEY (for image search)
@@ -51,10 +50,10 @@ def get_image_query(headline: str) -> str:
     system_prompt = "You are a photo editor. Extract the main person or team from this sports headline and output a clean, ultra-precise 3-to-4 word image search query. Optimize it to find professional action shots or portraits. Output ONLY the search query keywords with no punctuation, quote marks, or extra words."
 
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+        llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
             temperature=0.0,
-            google_api_key=GEMINI_API_KEY
+            groq_api_key=os.getenv("GROQ_API_KEY")
         )
 
         response = llm.invoke(f"{system_prompt}\n\nHeadline: {headline}")

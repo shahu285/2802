@@ -1,7 +1,7 @@
 import logging
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # =====================================================================
 # 🪵 SYSTEM LOGGING CONFIGURATION
@@ -22,13 +22,13 @@ logger = logging.getLogger("Regional_Editor")
 # =====================================================================
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GEMINI_API_KEY:
-    logger.error("GEMINI_API_KEY is missing from the .env file")
-    raise ValueError("GEMINI_API_KEY is missing from the .env file")
+if not GROQ_API_KEY:
+    logger.error("GROQ_API_KEY is missing from the .env file")
+    raise ValueError("GROQ_API_KEY is missing from the .env file")
 
-logger.info("GEMINI_API_KEY loaded successfully")
+logger.info("GROQ_API_KEY loaded successfully")
 
 # =====================================================================
 # 🧠 HEADLINE SIGNIFICANCE EVALUATOR
@@ -54,10 +54,10 @@ MINOR EVENTS: Local gossip, routine practice ground announcements, or generic fi
 Review the headline. Output exactly one word: ALLOW or BLOCK."""
 
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+        llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
             temperature=0.1,
-            google_api_key=GEMINI_API_KEY
+            groq_api_key=os.getenv("GROQ_API_KEY")
         )
 
         response = llm.invoke(f"{system_prompt}\n\nHeadline: {headline}")
