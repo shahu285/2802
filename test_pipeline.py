@@ -20,11 +20,11 @@ load_dotenv()
 # =====================================================================
 # IMPORT ALL AGENTS
 # =====================================================================
-from beat_reporter import fetch_major_headlines
-from regional_editor import evaluate_headline_significance
-from copywriter_agent import generate_journalistic_post
-from photojournalist import generate_image as generate_image_prompt, fetch_image_from_prompt
-from database_manager import insert_pending_post
+from agents.beat_reporter import fetch_major_headlines
+from agents.regional_editor import evaluate_headline_significance
+from agents.copywriter_agent import generate_journalistic_post
+from agents.photojournalist import generate_image as generate_image_prompt, fetch_image_from_prompt
+from database.database_manager import insert_pending_post
 
 # =====================================================================
 # PIPELINE EXECUTION

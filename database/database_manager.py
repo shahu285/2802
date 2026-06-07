@@ -10,7 +10,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] (Node: %(name)s) -> %(message)s",
     handlers=[
-        logging.FileHandler("newsroom.log"),
+        logging.FileHandler("../newsroom.log"),
         logging.StreamHandler()
     ]
 )

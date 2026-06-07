@@ -95,30 +95,33 @@ User clicks "Approve" → publisher.py posts to Bluesky
 **Execution Flow (Step by Step):**
 
 ```
-1. Beat_Reporter (beat_reporter.py)
+1. Beat_Reporter (agents/beat_reporter.py)
    └─> Fetches headlines from 4 RSS feeds (Cricket, Football, All News, Other Sports)
    └─> Filters articles from last 24 hours
    └─> Returns list of articles with: headline, source, URL, pub_date
 
-2. Regional_Editor (regional_editor.py)
+2. Regional_Editor (agents/regional_editor.py)
    └─> Receives each headline from Beat_Reporter
    └─> Uses Groq LLM (llama-3.3-70b-versatile) to classify: ALLOW or BLOCK
    └─> Allows: Cricket, Kabaddi, Football, Indian sports
    └─> Blocks: US sports (NFL, NBA, MLB), minor gossip
 
-3. Copywriter_Agent (copywriter_agent.py)
+3. Copywriter_Agent (agents/copywriter_agent.py)
    └─> Receives approved headline
    └─> Uses Groq LLM to analyze severity (Tier 1/2/3)
    └─> Generates viral post (<280 chars) with appropriate formatting
    └─> Returns styled text ready for posting
 
-4. Photojournalist (photojournalist.py)
+4. Photojournalist (agents/photojournalist.py)
    └─> Uses Groq to extract 3-4 keyword search query from headline
    └─> Searches Tavily API for relevant images
    └─> Filters out: social media, quotes, thumbnails, text overlays
    └─> Returns clean image URL
+```
 
-5. database_manager (database_manager.py)
+**Database Layer (Layer 2):**
+```
+5. database_manager (database/database_manager.py)
    └─> Saves complete post to Supabase pending_posts table
    └─> Status defaults to "pending" for human review
    └─> Returns saved record with ID
@@ -167,17 +170,42 @@ pending_posts (
 
 ---
 
-### 💻 LAYER 3: THE PRESENTATION & GATEWAY LAYER (STATUS: PENDING)
+### 💻 LAYER 3: THE PRESENTATION & GATEWAY LAYER (STATUS: ✅ COMPLETE)
 
-### 💻 LAYER 3: THE PRESENTATION & GATEWAY LAYER (STATUS: PENDING)
+**Backend Structure:**
+```
+backend/
+├── main.py           # FastAPI server with REST endpoints
+├── publisher.py      # Bluesky posting functionality
+└── requirements.txt  # Python dependencies
+```
+
 The front-facing surface layer that exposes our data storage queue to human editors and handles outbound secure network broadcasting.
 
-- **The Backend Gateway (FastAPI):** A high-performance, lightweight Python web framework (`main.py`) that handles API requests. It provides secure endpoints for the frontend application:
-  - `GET /api/posts/pending`: Fetches all items from Supabase where `status == 'pending'`.
-  - `POST /api/posts/{id}/approve`: Updates status to `'approved'` in Supabase and instantly triggers the outbound network broadcast.
-  - `POST /api/posts/{id}/reject`: Updates status to `'rejected'` to clean up the queue.
-- **The Human-in-the-Loop Frontend (Next.js + Tailwind CSS):** A beautiful, responsive web interface built with React. It queries the FastAPI server and renders the pending posts as clean social media preview cards. Human editors can review the text layout, verify the live image, edit the text manually if desired, and click an "Approve & Publish" button.
-- **The Broadcasting Adapter (`publisher.py`):** Connected directly to the FastAPI approval endpoint. It uses the official `atproto` Python SDK client to authenticate with the Bluesky network, upload the image asset binary, attach the formatted text payload, and broadcast the final sports post live to the public internet.
+- **The Backend Gateway (FastAPI):** (`backend/main.py`) provides these endpoints:
+  - `GET /api/posts/pending` - Fetch pending posts
+  - `GET /api/posts/all` - Fetch all posts  
+  - `POST /api/posts/{id}/approve` - Approve post (status → approved)
+  - `POST /api/posts/{id}/reject` - Reject post (status → rejected)
+  - `DELETE /api/posts/{id}` - Delete post
+  - `POST /api/posts` - Create new post manually
+
+- **The Broadcasting Adapter (`backend/publisher.py`):**
+  - `publish_post(text)` - Post text to Bluesky
+  - `publish_post_with_image(text, image_url)` - Post with image
+
+**To Run Backend:**
+```bash
+cd backend
+python main.py
+# Server runs at http://localhost:8000
+```
+
+---
+
+### 💻 Frontend (STATUS: PENDING - Optional)
+- **Next.js + Tailwind CSS** - React dashboard (future enhancement)
+- Can use API endpoints directly for now
 
 ---
 
