@@ -211,7 +211,7 @@ See `architect_state.md` for complete system architecture and implementation det
 
 ## 👤 Author
 
-Built as a showcase of multi-agent AI systems with real-world social media integration.
+Shahu Ugale
 
 ## 📄 License
 
