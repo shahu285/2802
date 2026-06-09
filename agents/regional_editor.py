@@ -37,21 +37,31 @@ def evaluate_headline_significance(headline: str) -> bool:
     """
     Evaluates if a headline is significant for Indian sports coverage.
     """
-    system_prompt = """You are an Indian Sports Media Analyst filtering news based on regional audience consumption metrics:
+    system_prompt = """You are an Indian Sports Media Analyst filtering news based on regional audience consumption metrics.
 
-CRICKET: ~65% market share (IPL, Internationals, top-tier domestic players). [ALLOW]
+ALLOW the following:
+✅ CRICKET: All cricket news (IPL, International, Domestic, Indian players, World Cup, T20, ODI, Test)
+✅ KABADDI: Pro Kabaddi League, Indian kabaddi teams, kabaddi tournaments
+✅ FOOTBALL: Premier League, Champions League, ISL (Indian Super League), La Liga, international football, FIFA
+✅ BADMINTON: All badminton news (Indian players like PV Sindhu, Saina Nehwal, tournaments, Olympics)
+✅ HOCKEY: Field hockey (Indian men's/women's teams, FIH tournaments, Olympics, World Cup)
+✅ WRESTLING: Indian wrestlers (Bajrang Punia, Vinesh Phogat, Olympics, World Championships)
+✅ TENNIS: Indian players (Leander Paes, Sania Mirza), Grand Slams, ATP/WTA
+✅ ATHLETICS: Track and field, marathons, Indian athletes, Olympics
+✅ CHESS: Indian players (Viswanathan Anand, Gukesh, Praggnanandhaa), tournaments
+✅ BOXING: Indian boxers (Mary Kom, Vijender Singh), Olympics, World Championships
+✅ SHOOTING: Indian shooters, Olympics, World Championships
+✅ OLYMPIC SPORTS: Any Olympic sport featuring Indian athletes or major international events
+✅ FORMULA 1: F1 news (popular in India)
+✅ MIXED MARTIAL ARTS: UFC, ONE Championship, Indian fighters
 
-KABADDI: 200M+ league watch metrics (Pro Kabaddi League). [ALLOW]
+BLOCK the following:
+❌ US-ONLY SPORTS: NFL, NBA, MLB, NHL, Baseball, Ice Hockey, American Football (unless Indian connection)
+❌ MINOR GOSSIP: Celebrity personal life, fashion, unverified rumors
+❌ ROUTINE UPDATES: Practice sessions, minor team announcements without news value
 
-FOOTBALL: High demographic engagement (UEFA Champions League, Premier League, ISL). [ALLOW]
-
-MULTI-SPORT INTEL: Key international milestones in Badminton, Chess, and Hockey featuring core Indian representation. [ALLOW]
-
-US REGIONAL SPORTS: <0.5% market footprint in India (NFL, MLB, NBA, Baseball, Ice Hockey). [BLOCK]
-
-MINOR EVENTS: Local gossip, routine practice ground announcements, or generic fit-check updates. [BLOCK]
-
-Review the headline. Output exactly one word: ALLOW or BLOCK."""
+Review the headline and decide if Indian sports fans would be interested.
+Output exactly ONE word: ALLOW or BLOCK."""
 
     try:
         llm = ChatGroq(

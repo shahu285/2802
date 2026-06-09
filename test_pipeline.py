@@ -46,99 +46,83 @@ if __name__ == "__main__":
     ]
     logger.info(f"Total: {len(all_headlines)} | Last 24h: {len(recent_headlines)}")
     
-    # STEP 2: Regional_Editor - Find first APPROVED FOOTBALL headline for variety
+    # STEP 2: Regional_Editor - Evaluate and approve multiple headlines
     logger.info("\n🔍 STEP 2: Regional_Editor evaluating headlines...")
     
-    # First, try to find a football headline
-    approved_headline = None
+    approved_headlines = []
     for article in recent_headlines:
         headline = article["headline"]
-        source = article.get("source", "")
-        if "Football" in source or "football" in headline.lower():
-            if evaluate_headline_significance(headline):
-                approved_headline = article
-                logger.info(f"✅ Found FOOTBALL headline: {headline[:60]}...")
+        if evaluate_headline_significance(headline):
+            approved_headlines.append(article)
+            if len(approved_headlines) >= 5:  # Process up to 5 posts
                 break
     
-    # If no football, get any approved headline
-    if not approved_headline:
-        for article in recent_headlines:
-            headline = article["headline"]
-            if evaluate_headline_significance(headline):
-                approved_headline = article
-                break
-    
-    if not approved_headline:
+    if not approved_headlines:
         logger.error("No headlines passed the regional editor filter!")
         exit(1)
     
-    raw_headline = approved_headline["headline"]
-    source = approved_headline["source"]
-    logger.info(f"✅ Approved headline: {raw_headline[:60]}...")
+    logger.info(f"✅ Approved {len(approved_headlines)} headlines for processing")
     
-    # STEP 3: Copywriter_Agent - Generate viral post
-    logger.info("\n✍️ STEP 3: Copywriter_Agent generating post...")
-    viral_post = generate_journalistic_post(raw_headline)
-    logger.info("✅ Viral post generated")
-    
-    # STEP 4: Photojournalist - Get image
-    logger.info("\n🎨 STEP 4: Photojournalist getting image...")
-    image_url = fetch_image_from_prompt(raw_headline, raw_headline)
-    logger.info("✅ Image retrieved")
-    
-    # STEP 5: Save to Database (Supabase)
-    logger.info("\n💾 STEP 5: Saving to Supabase database...")
-    # Determine severity tier from the post content
-    if viral_post.startswith("🚨BREAKING") or viral_post.startswith("🚨UPDATE"):
-        severity_tier = "Tier 1"
-    elif any(emoji in viral_post for emoji in ["🏏", "⚽", "🏅", "🎯"]):
-        severity_tier = "Tier 2"
-    else:
-        severity_tier = "Tier 3"
-    
-    saved_post = insert_pending_post(
-        raw_headline=raw_headline,
-        styled_text=viral_post,
-        image_url=image_url,
-        severity_tier=severity_tier,
-        source_feed=source
-    )
-    
-    if saved_post:
-        logger.info(f"✅ Post saved to database with ID: {saved_post['id']}")
-    else:
-        logger.error("❌ Failed to save post to database")
+    # Process each approved headline
+    for idx, approved_headline in enumerate(approved_headlines, 1):
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📰 PROCESSING POST {idx}/{len(approved_headlines)}")
+        logger.info(f"{'='*60}")
+        
+        raw_headline = approved_headline["headline"]
+        source = approved_headline["source"]
+        logger.info(f"Headline: {raw_headline[:60]}...")
+        
+        # STEP 3: Copywriter_Agent - Generate viral post
+        logger.info(f"\n✍️ STEP 3.{idx}: Copywriter_Agent generating post...")
+        viral_post = generate_journalistic_post(raw_headline)
+        logger.info("✅ Viral post generated")
+        
+        # STEP 4: Photojournalist - Get image
+        logger.info(f"\n🎨 STEP 4.{idx}: Photojournalist getting image...")
+        image_url = fetch_image_from_prompt(raw_headline, raw_headline)
+        logger.info("✅ Image retrieved")
+        
+        # STEP 5: Save to Database (Supabase)
+        logger.info(f"\n💾 STEP 5.{idx}: Saving to Supabase database...")
+        # Determine severity tier from the post content
+        if viral_post.startswith("🚨BREAKING") or viral_post.startswith("🚨UPDATE"):
+            severity_tier = "Tier 1"
+        elif any(emoji in viral_post for emoji in ["🏏", "⚽", "🏅", "🎯"]):
+            severity_tier = "Tier 2"
+        else:
+            severity_tier = "Tier 3"
+        
+        saved_post = insert_pending_post(
+            raw_headline=raw_headline,
+            styled_text=viral_post,
+            image_url=image_url,
+            severity_tier=severity_tier,
+            source_feed=source
+        )
+        
+        if saved_post:
+            logger.info(f"✅ Post {idx} saved to database with ID: {saved_post['id']}")
+        else:
+            logger.error(f"❌ Failed to save post {idx} to database")
+        
+        # Print summary for this post
+        print("\n" + "=" * 70)
+        print(f"📰 POST {idx}: {source}")
+        print("=" * 70)
+        print(f"Raw: {raw_headline[:80]}...")
+        print(f"Styled: {viral_post[:100]}...")
+        print(f"Tier: {severity_tier}")
+        print("=" * 70)
     
     # =====================================================================
-    # FINAL OUTPUT
+    # FINAL SUMMARY
     # =====================================================================
     print("\n" + "=" * 70)
-    print("📰 COMPLETE NEWS POST FROM MULTI-AGENT PIPELINE")
+    print(f"✅ PIPELINE COMPLETE - {len(approved_headlines)} POSTS PROCESSED")
     print("=" * 70)
-    
-    print(f"\n📡 SOURCE: {source}")
-    print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    print("\n" + "-" * 70)
-    print("📰 RAW HEADLINE")
-    print("-" * 70)
-    print(raw_headline)
-    
-    print("\n" + "-" * 70)
-    print("✨ VIRAL JOURNALISTIC POST")
-    print("-" * 70)
-    print(viral_post)
-    print(f"\n📏 Character count: {len(viral_post)}/280")
-    
-    print("\n" + "-" * 70)
-    print("🖼️ IMAGE")
-    print("-" * 70)
-    if image_url.startswith("data:image"):
-        print("[Image generated as base64]")
-        print(f"Data length: {len(image_url)} characters")
-    else:
-        print(image_url)
-    
-    print("\n" + "=" * 70)
-    print("✅ PIPELINE COMPLETE")
+    print(f"📊 Total headlines fetched: {len(all_headlines)}")
+    print(f"📊 Recent (24h): {len(recent_headlines)}")
+    print(f"📊 Approved: {len(approved_headlines)}")
+    print(f"📊 Saved to database: {len(approved_headlines)}")
     print("=" * 70 + "\n")

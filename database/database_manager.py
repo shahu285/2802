@@ -103,25 +103,51 @@ def get_all_posts() -> list:
         return []
 
 # =====================================================================
+# 📋 FETCH POST BY ID
+# =====================================================================
+def get_post_by_id(post_id: str) -> dict:
+    """
+    Fetches a single post by its ID.
+    """
+    try:
+        response = supabase.table("pending_posts").select("*").eq("id", post_id).execute()
+        if response.data and len(response.data) > 0:
+            logger.info(f"Fetched post {post_id}")
+            return response.data[0]
+        else:
+            logger.warning(f"Post {post_id} not found")
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching post by ID: {e}")
+        return None
+
+# =====================================================================
 # ✅ UPDATE POST STATUS
 # =====================================================================
-def update_post_status(post_id: str, new_status: str) -> bool:
+def update_post_status(post_id: str, new_status: str, bluesky_url: str = None) -> bool:
     """
-    Updates the status of a post (approved/rejected).
+    Updates the status of a post (approved/rejected) and optionally stores Bluesky URL.
     
     Args:
         post_id: The UUID of the post
         new_status: Either 'approved' or 'rejected'
+        bluesky_url: Optional URL of the published Bluesky post
     """
     if new_status not in ["approved", "rejected"]:
         logger.error(f"Invalid status: {new_status}")
         return False
     
     try:
-        response = supabase.table("pending_posts").update({"status": new_status}).eq("id", post_id).execute()
+        update_data = {"status": new_status}
+        if bluesky_url:
+            update_data["bluesky_url"] = bluesky_url
+            
+        response = supabase.table("pending_posts").update(update_data).eq("id", post_id).execute()
         
         if response.data:
             logger.info(f"✅ Post {post_id} status updated to {new_status}")
+            if bluesky_url:
+                logger.info(f"✅ Bluesky URL saved: {bluesky_url}")
             return True
         else:
             logger.error(f"Failed to update post {post_id}")

@@ -203,13 +203,149 @@ python main.py
 
 ---
 
-### 💻 Frontend (STATUS: PENDING - Optional)
-- **Next.js + Tailwind CSS** - React dashboard (future enhancement)
-- Can use API endpoints directly for now
+### 💻 Frontend (STATUS: ✅ COMPLETE - Layer 4)
+
+**Next.js Dashboard Structure:**
+```
+frontend/
+├── app/
+│   ├── page.tsx          # Main dashboard - COMPLETE ✅
+│   ├── layout.tsx        # Root layout - COMPLETE ✅
+│   └── globals.css       # Tailwind styles - COMPLETE ✅
+├── components/
+│   └── PostCard.tsx      # Individual post card - COMPLETE ✅
+├── lib/
+│   └── api.ts            # API client functions - COMPLETE ✅
+└── package.json          # Dependencies - COMPLETE ✅
+```
+
+**Frontend Features:**
+1. ✅ **Stats Dashboard** - Shows counts for pending, approved, rejected, and total posts
+2. ✅ **Pending Posts Tab** - Card-based layout showing all pending posts awaiting review
+3. ✅ **History Tab** - Shows approved and rejected posts with visual distinction
+4. ✅ **Post Cards** - Display headline, styled text, image, tier badge, source, timestamp
+5. ✅ **Action Buttons** - "Approve & Publish" and "Reject" buttons with loading states
+6. ✅ **Auto-Refresh** - Dashboard refreshes every 30 seconds to show new posts
+7. ✅ **Responsive Design** - Works on desktop, tablet, and mobile devices
+
+**To Access Dashboard:**
+```bash
+Frontend: http://localhost:3000
+Backend API: http://127.0.0.1:8001
+```
+
+**Complete System Interaction Flow:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│  AUTOMATIC BACKGROUND PROCESS (Runs via cron/manual)│
+└─────────────────────────────────────────────────────┘
+                        ↓
+    agents/beat_reporter.py (Fetch RSS)
+                        ↓
+    agents/regional_editor.py (AI Filter)
+                        ↓
+    agents/copywriter_agent.py (AI Write)
+                        ↓
+    agents/photojournalist.py (AI Image Search)
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  SUPABASE DATABASE                                  │
+│  pending_posts table (status="pending")             │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  FRONTEND (Next.js) - http://localhost:3000         │
+│  User opens dashboard → Sees pending posts          │
+└─────────────────────────────────────────────────────┘
+                        ↓
+          GET /api/posts/pending (every 30s)
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  BACKEND API (FastAPI) - http://127.0.0.1:8001      │
+│  Returns: [{id, headline, text, image, tier...}]    │
+└─────────────────────────────────────────────────────┘
+                        ↓
+          User clicks "Approve & Publish"
+                        ↓
+          POST /api/posts/{id}/approve
+                        ↓
+          FastAPI → Updates DB → Calls publisher.py
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  BLUESKY API                                        │
+│  Post published with image                          │
+└─────────────────────────────────────────────────────┘
+                        ↓
+          Frontend shows: "✅ Posted successfully!"
+```
+
+**Dashboard Features:**
+1. **Post Queue** - Cards with headline, text, image, tier badge
+2. **Action Buttons** - "Approve & Publish" / "Reject"
+3. **Pipeline Visualization** - Flow diagram showing current step
+4. **History Tab** - View approved/rejected posts
+5. **Stats** - Total posts, approval rate, posts by source
 
 ---
 
-## 6. Frontend Dashboard Features
+## 6. Component Communication & Data Flow
+
+### Frontend → Backend → Database → External Services
+
+| User Action | Frontend Component | Backend API | Database Action | External Service |
+|-------------|-------------------|-------------|-----------------|------------------|
+| Dashboard loads | Dashboard.tsx | `GET /api/posts/pending` | SELECT WHERE status='pending' | - |
+| Click "Approve" | PostCard.tsx | `POST /api/posts/{id}/approve` | UPDATE status='approved' | Bluesky API (publish) |
+| Click "Reject" | PostCard.tsx | `POST /api/posts/{id}/reject` | UPDATE status='rejected' | - |
+| View History | HistoryTab.tsx | `GET /api/posts/all` | SELECT ALL ORDER BY date | - |
+| Delete Post | PostCard.tsx | `DELETE /api/posts/{id}` | DELETE WHERE id={id} | - |
+
+### Real-Time Workflow Example
+
+```
+STEP 1: Background Pipeline Runs
+   python test_pipeline.py
+   → agents process RSS feeds
+   → New post: "Kohli scores century"
+   → Saved to Supabase (status=pending)
+
+STEP 2: Frontend Auto-Refresh (every 30s)
+   fetch('http://127.0.0.1:8001/api/posts/pending')
+   → Backend queries Supabase
+   → Returns JSON array of pending posts
+   → Dashboard updates UI
+
+STEP 3: Editor Reviews Post
+   - Sees: Headline, styled text, image thumbnail
+   - Checks: Tier badge (Tier 1/2/3)
+   - Decides: Approve or Reject
+
+STEP 4: Editor Clicks "Approve & Publish"
+   fetch('POST /api/posts/abc-123/approve')
+   → FastAPI main.py:
+       1. update_post_status(id, 'approved')
+       2. get post from database
+       3. publisher.publish_post_with_image(text, image)
+   → publisher.py:
+       - Authenticates with Bluesky
+       - Downloads image from URL
+       - Uploads to Bluesky blob storage
+       - Creates post record
+       - Returns success
+   → Frontend receives response
+   → Shows: "✅ Posted to Bluesky!"
+   → Removes from pending queue
+
+STEP 5: Post is Live
+   - Visible on https://bsky.app/profile/ustweets.bsky.social
+   - Database status = 'approved'
+   - Dashboard shows in History tab
+```
+
+---
+
+## 7. Frontend Dashboard Features (Detailed)
 
 The web dashboard should visualize this workflow for easy understanding:
 
@@ -238,9 +374,152 @@ This helps users understand where each post is in the pipeline.
 
 ---
 
-## 7. System Execution Context (Rules for Upcoming AI Agents)
+## 8. System Execution Context (Rules for Upcoming AI Agents)
 Any AI model or developer continuing this repository must:
 1. Strictly maintain the zero-cost architecture boundaries.
 2. Use **Gemini 2.5 Flash Lite** (`gemini-2.5-flash-lite`) as the standard LLM driver for low latency and high consistency.
 3. Preserve the native logging outputs routing into `newsroom.log`.
 4. Ensure code structures remain highly modular, following clean functional abstraction paradigms.
+
+---
+
+## 9. Complete System Testing Guide
+
+### 🚀 Starting the System
+
+**Step 1: Start Backend API**
+```bash
+cd backend
+python main.py
+# Server runs at http://127.0.0.1:8001
+```
+
+**Step 2: Start Frontend Dashboard**
+```bash
+cd frontend
+npm run dev
+# Dashboard runs at http://localhost:3000
+```
+
+**Step 3: Generate Test Posts**
+```bash
+# From project root
+python test_pipeline.py
+# This will fetch RSS feeds, filter, generate posts, and save to database
+```
+
+### ✅ Testing the Complete Flow
+
+**Test 1: View Pending Posts**
+1. Open browser to `http://localhost:3000`
+2. You should see the dashboard with stats (Pending, Approved, Rejected, Total)
+3. The "Pending" tab should show all posts with status="pending"
+4. Each post card shows:
+   - Tier badge (Tier 1/2/3)
+   - Source feed indicator
+   - Raw headline
+   - Styled post preview with character count
+   - Image thumbnail (if available)
+   - Timestamp
+   - "Approve & Publish" and "Reject" buttons
+
+**Test 2: Approve and Publish to Bluesky**
+1. Click the "Approve & Publish" button on any post
+2. The button shows "Processing..."
+3. Backend API:
+   - Updates post status to "approved" in database
+   - Downloads the image from URL
+   - Uploads image to Bluesky blob storage
+   - Creates post on Bluesky with image embed
+4. Success message appears: "✅ Post approved and published to Bluesky!"
+5. Post disappears from pending queue
+6. Check Bluesky profile to verify post: `https://bsky.app/profile/ustweets.bsky.social`
+
+**Test 3: Reject a Post**
+1. Click the "Reject" button on any post
+2. The button shows "Processing..."
+3. Backend updates status to "rejected"
+4. Success message appears: "✅ Post rejected"
+5. Post disappears from pending queue
+
+**Test 4: View History**
+1. Click the "History" tab
+2. See all approved posts (green border, "✅ Approved Posts" section)
+3. See all rejected posts (red border, grayed out, "❌ Rejected Posts" section)
+
+**Test 5: Auto-Refresh**
+1. Leave the dashboard open
+2. Run `python test_pipeline.py` in another terminal
+3. Wait up to 30 seconds
+4. New posts should appear automatically in the dashboard
+
+### 🔍 API Testing (Manual)
+
+**Get Pending Posts:**
+```bash
+curl http://127.0.0.1:8001/api/posts/pending
+```
+
+**Get All Posts:**
+```bash
+curl http://127.0.0.1:8001/api/posts/all
+```
+
+**Approve a Post:**
+```bash
+curl -X POST http://127.0.0.1:8001/api/posts/{post_id}/approve
+```
+
+**Reject a Post:**
+```bash
+curl -X POST http://127.0.0.1:8001/api/posts/{post_id}/reject
+```
+
+### 📊 Current System Status
+
+- ✅ **Layer 1** - Multi-Agent Pipeline (4 agents working)
+- ✅ **Layer 2** - Supabase Database (connected and storing posts)
+- ✅ **Layer 3** - FastAPI Backend (running on port 8001)
+- ✅ **Layer 4** - Next.js Frontend (running on port 3000)
+- ✅ **Bluesky Integration** - Successfully posting with images
+
+**Active Servers:**
+- Backend API: `http://127.0.0.1:8001`
+- Frontend Dashboard: `http://localhost:3000`
+- Bluesky Profile: `https://bsky.app/profile/ustweets.bsky.social`
+
+**Database:**
+- Supabase Project: `https://lmwohypczyicnznoqejo.supabase.co`
+- Table: `pending_posts`
+- Current Posts: 3 pending (as of last check)
+
+### 🎯 Next Steps / Future Enhancements
+
+1. **Automated Pipeline Scheduling**
+   - Set up cron job to run `test_pipeline.py` every hour
+   - Automatically fetch and process new sports news
+
+2. **Enhanced Filtering**
+   - Add more sports sources (Kabaddi, Hockey, Badminton)
+   - Improve regional editor filtering logic
+   - Add duplicate detection
+
+3. **Dashboard Improvements**
+   - Add pipeline visualization showing real-time agent activity
+   - Add search and filter functionality
+   - Add bulk approve/reject actions
+   - Add editing capability before publishing
+
+4. **Analytics**
+   - Track approval rates by source
+   - Monitor post performance on Bluesky
+   - Track most common rejection reasons
+
+5. **Notifications**
+   - Email/Slack alerts when new posts arrive
+   - Daily digest of pending posts
+
+6. **Multi-Platform Publishing**
+   - Add X (Twitter) integration
+   - Add Threads integration
+   - Add Instagram integration

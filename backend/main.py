@@ -19,8 +19,12 @@ from database.database_manager import (
     get_all_posts,
     update_post_status,
     delete_post,
-    insert_pending_post
+    insert_pending_post,
+    get_post_by_id
 )
+
+# Import publisher after path is set
+from publisher import publish_post, publish_post_with_image
 
 # =====================================================================
 # 🪵 LOGGING CONFIGURATION
@@ -40,6 +44,8 @@ logger = logging.getLogger("FastAPI_Backend")
 # 🔐 ENVIRONMENT VARIABLES
 # =====================================================================
 load_dotenv()
+
+BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 
 # =====================================================================
 # 🚀 FASTAPI APP SETUP
@@ -138,19 +144,60 @@ def approve_post(post_id: str):
     Approve a post - changes status to 'approved' and triggers publishing
     """
     try:
-        # Update status to approved
-        success = update_post_status(post_id, "approved")
+        # Get the post data first
+        post = get_post_by_id(post_id)
         
-        if not success:
+        if not post:
             raise HTTPException(status_code=404, detail="Post not found")
         
-        # TODO: Trigger publisher.py to post to Bluesky
-        logger.info(f"Post {post_id} approved - ready for publishing")
+        # Publish to Bluesky first
+        logger.info(f"Publishing post {post_id} to Bluesky...")
         
-        return {
-            "success": True,
-            "message": f"Post {post_id} approved and queued for publishing"
-        }
+        styled_text = post.get("styled_text", "")
+        image_url = post.get("image_url")
+        
+        # Publish with or without image
+        if image_url:
+            result = publish_post_with_image(styled_text, image_url)
+        else:
+            result = publish_post(styled_text)
+        
+        if result.get("success"):
+            # Extract Bluesky URL from URI
+            uri = result.get("uri", "")
+            # Convert AT URI to web URL
+            # Format: at://did:plc:xxx/app.bsky.feed.post/xxxxx
+            # To: https://bsky.app/profile/handle/post/xxxxx
+            bluesky_url = None
+            if uri:
+                try:
+                    # Extract post ID from URI
+                    post_rkey = uri.split("/")[-1]
+                    bluesky_url = f"https://bsky.app/profile/{BLUESKY_HANDLE}/post/{post_rkey}"
+                except:
+                    bluesky_url = uri  # Fallback to URI if parsing fails
+            
+            # Update status to approved with Bluesky URL
+            success = update_post_status(post_id, "approved", bluesky_url)
+            
+            if not success:
+                logger.warning(f"Post published but failed to update database status")
+            
+            logger.info(f"✅ Post {post_id} published successfully to Bluesky")
+            return {
+                "success": True,
+                "message": f"Post approved and published to Bluesky!",
+                "bluesky_uri": uri,
+                "bluesky_url": bluesky_url
+            }
+        else:
+            # If publishing failed, still mark as approved but without URL
+            update_post_status(post_id, "approved")
+            logger.error(f"Failed to publish to Bluesky: {result.get('error')}")
+            return {
+                "success": False,
+                "message": f"Post approved but failed to publish: {result.get('error')}"
+            }
     except HTTPException:
         raise
     except Exception as e:
@@ -236,11 +283,11 @@ def create_post(post: PostCreate):
 # =====================================================================
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting FastAPI server on http://127.0.0.1:8000")
+    logger.info("Starting FastAPI server on http://127.0.0.1:8001")
     uvicorn.run(
         "main:app",
         host="127.0.0.1",
-        port=8000,
+        port=8001,
         reload=False,
         log_level="info"
     )
