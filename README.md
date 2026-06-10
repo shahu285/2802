@@ -211,8 +211,4 @@ See `architect_state.md` for complete system architecture and implementation det
 
 ## 👤 Author
 
-Shahu Ugale
-
-## 📄 License
-
-This project is for educational and portfolio purposes.
+Shahu Ugale | AI Engineer
